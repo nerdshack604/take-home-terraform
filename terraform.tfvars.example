@@ -1,0 +1,229 @@
+################################################################################
+# Example Terraform Variables Configuration
+# Copy this file to terraform.tfvars and customize for your environment
+################################################################################
+
+################################################################################
+# General Configuration
+################################################################################
+
+project_name = "my-shinyproxy-project"
+environment  = "production" # Options: dev, staging, production
+
+tags = {
+  "Owner"      = "data-team"
+  "CostCenter" = "analytics"
+  "Compliance" = "hipaa"
+}
+
+################################################################################
+# VPC Configuration - Option 1: Create New VPC
+################################################################################
+
+# Leave vpc_id as null to create a new VPC
+vpc_id              = null
+private_subnet_ids  = []
+public_subnet_ids   = []
+
+# New VPC settings
+vpc_cidr = "10.0.0.0/16"
+availability_zones = [
+  "us-west-2a",
+  "us-west-2b",
+  "us-west-2c"
+]
+private_subnet_cidrs = [
+  "10.0.1.0/24",
+  "10.0.2.0/24",
+  "10.0.3.0/24"
+]
+public_subnet_cidrs = [
+  "10.0.101.0/24",
+  "10.0.102.0/24",
+  "10.0.103.0/24"
+]
+single_nat_gateway       = false # Set to true for dev/staging to save costs
+flow_log_retention_days  = 30
+
+################################################################################
+# VPC Configuration - Option 2: Use Existing VPC
+################################################################################
+
+# Uncomment and configure to use an existing VPC
+# vpc_id = "vpc-0123456789abcdef0"
+# private_subnet_ids = [
+#   "subnet-0123456789abcdef0",
+#   "subnet-0123456789abcdef1",
+#   "subnet-0123456789abcdef2"
+# ]
+# public_subnet_ids = [
+#   "subnet-0fedcba987654321a",
+#   "subnet-0fedcba987654321b",
+#   "subnet-0fedcba987654321c"
+# ]
+
+################################################################################
+# EKS Cluster Configuration
+################################################################################
+
+cluster_name    = "shinyproxy-eks-cluster"
+cluster_version = "1.34"
+
+cluster_endpoint_public_access = true # Set to false for private-only access
+cloudwatch_log_retention_days  = 90
+
+################################################################################
+# KMS Configuration
+################################################################################
+
+kms_deletion_window_in_days     = 30
+kms_key_rotation_period_in_days = 90 # Rotate every 90 days for compliance
+
+################################################################################
+# EKS Node Groups
+################################################################################
+
+node_groups = {
+  general = {
+    min_size       = 2
+    max_size       = 6
+    desired_size   = 3
+    instance_types = ["t3.large"]
+    capacity_type  = "ON_DEMAND"
+    disk_size      = 50
+    labels = {
+      workload = "general"
+    }
+    taints = []
+  }
+
+  # Optional: Add a spot instance group for cost savings
+  # spot = {
+  #   min_size       = 1
+  #   max_size       = 5
+  #   desired_size   = 2
+  #   instance_types = ["t3.large", "t3a.large"]
+  #   capacity_type  = "SPOT"
+  #   disk_size      = 50
+  #   labels = {
+  #     workload = "spot"
+  #   }
+  #   taints = [
+  #     {
+  #       key    = "spot"
+  #       value  = "true"
+  #       effect = "NoSchedule"
+  #     }
+  #   ]
+  # }
+}
+
+################################################################################
+# EKS Addons Configuration
+# Check latest versions: aws eks describe-addon-versions --kubernetes-version 1.34
+################################################################################
+
+cluster_addons = {
+  vpc-cni = {
+    version                     = "v1.19.0-eksbuild.1"
+    resolve_conflicts_on_create = "OVERWRITE"
+    resolve_conflicts_on_update = "PRESERVE"
+  }
+  coredns = {
+    version                     = "v1.11.3-eksbuild.2"
+    resolve_conflicts_on_create = "OVERWRITE"
+    resolve_conflicts_on_update = "PRESERVE"
+  }
+  kube-proxy = {
+    version                     = "v1.31.2-eksbuild.3"
+    resolve_conflicts_on_create = "OVERWRITE"
+    resolve_conflicts_on_update = "PRESERVE"
+  }
+  aws-ebs-csi-driver = {
+    version                     = "v1.37.0-eksbuild.1"
+    resolve_conflicts_on_create = "OVERWRITE"
+    resolve_conflicts_on_update = "PRESERVE"
+  }
+}
+
+################################################################################
+# ShinyProxy Configuration
+################################################################################
+
+shinyproxy_namespace            = "shinyproxy"
+shinyproxy_version             = "3.2.1"
+enable_shinyproxy_ecr_access   = true
+shinyproxy_image_pull_policy   = "IfNotPresent"
+shinyproxy_replicas            = 2
+shinyproxy_port                = 8080
+
+# ShinyProxy Applications
+shinyproxy_apps = [
+  {
+    id              = "01_hello"
+    display_name    = "Hello Application"
+    description     = "A simple hello world Shiny application"
+    container_image = "openanalytics/shinyproxy-demo"
+    container_cmd   = ["R", "-e", "shiny::runApp('/root/shinyproxy-demo')"]
+    container_env   = {}
+    port            = 3838
+  },
+  {
+    id              = "02_iris"
+    display_name    = "Iris Dataset Explorer"
+    description     = "Explore the famous Iris dataset"
+    container_image = "rocker/shiny:4.3.0"
+    container_cmd   = []
+    container_env = {
+      SHINY_APP = "iris"
+    }
+    port = 3838
+  }
+]
+
+# ShinyProxy Authentication - Option 1: No Authentication (Development Only)
+shinyproxy_authentication = {
+  type = "none"
+}
+
+# ShinyProxy Authentication - Option 2: Simple Authentication
+# shinyproxy_authentication = {
+#   type = "simple"
+#   simple = {
+#     users = [
+#       {
+#         name     = "admin"
+#         password = "$2a$10$..." # Use bcrypt hashed password
+#         groups   = ["admins", "users"]
+#       },
+#       {
+#         name     = "scientist"
+#         password = "$2a$10$..."
+#         groups   = ["users"]
+#       }
+#     ]
+#   }
+# }
+
+# ShinyProxy Authentication - Option 3: LDAP
+# shinyproxy_authentication = {
+#   type = "ldap"
+#   ldap = {
+#     url             = "ldap://ldap.example.com:389"
+#     user_dn_pattern = "uid={0},ou=users,dc=example,dc=com"
+#     manager_dn      = "cn=admin,dc=example,dc=com"
+#     manager_password = "secret" # Use AWS Secrets Manager in production
+#   }
+# }
+
+# ShinyProxy Resource Limits
+shinyproxy_resources = {
+  requests = {
+    memory = "512Mi"
+    cpu    = "250m"
+  }
+  limits = {
+    memory = "2Gi"
+    cpu    = "1000m"
+  }
+}
